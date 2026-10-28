@@ -56,7 +56,8 @@ const EnvSchema = z.object({
 export type Config = z.infer<typeof EnvSchema>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const parsed = EnvSchema.safeParse(env);
+  // Hosts such as Vercel tell the server which port to use via PORT.
+  const parsed = EnvSchema.safeParse({ ...env, API_PORT: env.API_PORT ?? env.PORT });
   if (!parsed.success) {
     // Fail fast at boot: a misconfigured API must never start serving traffic.
     throw new Error(`Invalid environment configuration:\n${z.prettifyError(parsed.error)}`);

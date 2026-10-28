@@ -1,13 +1,31 @@
 # Deploying Ohviana
 
-Three processes and one database:
+Two Vercel projects, one per repository, and one database:
 
-| Component                                      | What                                                       | Suggested host                                                                     |
-| ---------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| **Web** (`apps/web`)                           | Next.js marketplace + dashboards                           | Vercel (or any Node host: `npm run build && npm run start -w @ohviana/web`)        |
-| **API** (`apps/api`, `dist/server.js`)         | Fastify REST API                                           | Render / Railway / Fly.io / a VM, from `apps/api/Dockerfile`                       |
-| **Worker** (`apps/api`, `dist/worker/main.js`) | Outbox delivery (emails), maintenance, seat reconciliation | Same image as the API, second service, **1 instance is enough** (safe to run more) |
-| **Database**                                   | Supabase Postgres + Auth                                   | A **separate production** Supabase project (Mumbai)                                |
+| Component                                      | What                                                       | Where                                                                         |
+| ---------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **Web** (ohviana-web)                          | Next.js marketplace + dashboards                           | Vercel project `ohviana-web`, `ohviana.com` (see that repository's README)    |
+| **API** (`apps/api`, `dist/server.js`)         | Fastify REST API                                           | Vercel project `ohviana-apis`: a Fastify function, `api.ohviana.com`          |
+| **Worker** (`apps/api`, `dist/worker/main.js`) | Outbox delivery (emails), maintenance, seat reconciliation | Same project: a Vercel Daemon (`Dockerfile.worker`), **1 instance is enough** |
+| **Database**                                   | Supabase Postgres + Auth                                   | A **separate production** Supabase project (Mumbai)                           |
+
+`vercel.json` declares the API service, the worker daemon and the Mumbai region (`bom1`). The
+image in `apps/api/Dockerfile` still runs the API anywhere else (Render, Fly.io, a VM).
+
+### The ohviana-apis Vercel project
+
+- [ ] Vercel → **Add New → Project** → import `ohviana/ohviana-apis`. Leave **Root Directory**
+      empty (the repository root, where `vercel.json` is) and the framework preset as detected.
+- [ ] Add the environment variables below for **Production** (also Preview if you use previews:
+      point those at a non-production database).
+- [ ] Deploy. Production builds run `apps/api/scripts/vercel-build.sh`, which builds the API and
+      then applies migrations through `MIGRATE_DATABASE_URL` before the new version goes live.
+- [ ] **Settings → Domains**: add `api.ohviana.com` (and `api.ohviana.in` if wanted) and create the
+      DNS record Vercel shows.
+- [ ] Check `https://api.ohviana.com/v1/health/ready` and, in **Logs**, the worker's
+      `worker started`. Daemons are in beta and run only for production deployments.
+- [ ] Vercel refuses request bodies over 4.5 MB. The website shrinks larger photos before upload;
+      other clients must stay under that size too.
 
 ## 1. One-time setup
 
@@ -20,8 +38,8 @@ Three processes and one database:
 - [ ] Supabase → **Authentication → Email**: configure custom SMTP (the built-in sender is
       limited to a few emails per hour).
 - [ ] Email provider: create a Resend account, verify the sending domain, create an API key.
-- [ ] Pick hosts with **IPv4**: use the Supabase **Session pooler** connection string
-      (`…pooler.supabase.com:5432`), not the direct (IPv6-only) one.
+- [ ] Use the Supabase **pooler** connection strings (IPv4), not the direct (IPv6-only) one:
+      the transaction pooler (6543) for `DATABASE_URL`, the session pooler (5432) for migrations.
 
 ## 2. Environment variables
 
@@ -32,8 +50,9 @@ Three processes and one database:
 | `NODE_ENV`                                     | `production`                                                                                                                                                                                                                                                                          |
 | `AUTH_MODE`                                    | `supabase` (the temporary `dev` login is refused in production)                                                                                                                                                                                                                       |
 | `AUTH_JWT_SECRET`                              | 32+ random characters; signs email + password sessions (keep secret)                                                                                                                                                                                                                  |
+| `MIGRATE_DATABASE_URL`                         | Supabase **session pooler** URI (`pooler.supabase.com:5432`); production builds migrate through it                                                                                                                                                                                    |
 | `DATABASE_URL`                                 | Supabase **transaction pooler** URI (`pooler.supabase.com:6543`) for API and worker. The session pooler (5432) allows only about 15 connections in total. Prepared statements are switched off automatically on 6543. Use the session pooler or direct URL when running `migrate.js`. |
-| `DB_POOL_MAX`                                  | Per API instance (default 10); the worker uses 3. Keep the total within the pooler limit.                                                                                                                                                                                             |
+| `DB_POOL_MAX`                                  | `3` on Vercel: every function instance opens its own pool; the worker uses 3. Keep the total within the pooler limit.                                                                                                                                                                 |
 | `SUPABASE_URL`                                 | `https://<ref>.supabase.co` (token verification via public JWKS — no secret)                                                                                                                                                                                                          |
 | `CORS_ORIGINS`                                 | Web origin(s), e.g. `https://ohviana.in`                                                                                                                                                                                                                                              |
 | `TRUST_PROXY`                                  | `true` behind the host's load balancer (correct client IPs for rate limits)                                                                                                                                                                                                           |
@@ -57,13 +76,14 @@ Three processes and one database:
 ## 3. Every deploy
 
 1. CI green (format, lint, typecheck, unit + integration tests, build, browser e2e).
-2. **Migrate first**: `node dist/migrate.js` (from the image) against production. Migrations are
-   additive; never edit an applied migration.
-3. Deploy API → check `GET /v1/health/ready` returns `{"status":"ok"}`.
-4. Deploy worker → logs show `worker started` and `maintenance done`.
-5. Deploy web → open a trek page and a checkout.
+2. Merge to `main` in ohviana-apis. The Vercel production build **migrates first** (see above),
+   then the API and worker go live. Migrations are additive; never edit an applied migration.
+   Elsewhere, run `node dist/migrate.js` from the image before deploying.
+3. Check `GET /v1/health/ready` returns `{"status":"ok"}` and the worker logs `worker started`
+   and `maintenance done`.
+4. Deploy web (ohviana-web) → open a trek page and a checkout.
 
-Rollback: redeploy the previous image/web build. Because migrations are additive, the previous
+Rollback: Vercel **Instant Rollback** (or redeploy the previous image/web build). Because migrations are additive, the previous
 version keeps working against the newer schema.
 
 ## 4. First production data

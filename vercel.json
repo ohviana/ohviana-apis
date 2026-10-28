@@ -1,0 +1,21 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["bom1"],
+  "services": {
+    "api": {
+      "root": "apps/api",
+      "framework": "fastify",
+      "buildCommand": "sh scripts/vercel-build.sh",
+      "entrypoint": "dist/server.js"
+    }
+  },
+  "rewrites": [{ "source": "/(.*)", "destination": { "service": "api" } }],
+  "daemons": {
+    "worker": {
+      "root": ".",
+      "entrypoint": "Dockerfile.worker",
+      "instances": { "bom1": 1 },
+      "resources": { "requests": { "memory": "1Gi" } }
+    }
+  }
+}
