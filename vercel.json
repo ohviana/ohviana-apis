@@ -5,6 +5,7 @@
     "api": {
       "root": "apps/api",
       "framework": "fastify",
+      "installCommand": "cd ../.. && npm ci --include=dev",
       "buildCommand": "sh scripts/vercel-build.sh",
       "entrypoint": "dist/server.js"
     }
