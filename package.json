@@ -2,6 +2,7 @@
   "name": "ohviana-apis",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
   "packageManager": "npm@11.19.0",
   "engines": {
     "node": ">=22"
