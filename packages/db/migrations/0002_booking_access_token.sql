@@ -1,0 +1,1 @@
+ALTER TABLE "bookings" ADD COLUMN "access_token_hash" text;

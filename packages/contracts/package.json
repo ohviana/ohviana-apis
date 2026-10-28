@@ -1,0 +1,16 @@
+{
+  "name": "@ohviana/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ohviana/shared": "0.0.0",
+    "zod": "^4.6.7"
+  }
+}

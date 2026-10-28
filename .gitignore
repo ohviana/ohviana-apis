@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.next/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.turbo/
+supabase/.temp/
+
+test-results/
+playwright-report/
+
+# Product documents are kept out of the repository
+Ohviana_-_PRD.pdf
+Ohviana_-_TDD.pdf
+*.pdf
+
+# Personal editor settings
+.vscode/

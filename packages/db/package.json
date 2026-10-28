@@ -1,0 +1,29 @@
+{
+  "name": "@ohviana/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./migrate": "./src/migrate.ts"
+  },
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --env-file-if-exists=../../.env src/cli/migrate.ts",
+    "db:seed": "tsx --env-file-if-exists=../../.env src/cli/seed.ts",
+    "db:studio": "drizzle-kit studio",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "admin:grant": "tsx --env-file-if-exists=../../.env src/cli/grant-admin.ts"
+  },
+  "dependencies": {
+    "@ohviana/shared": "0.0.0",
+    "drizzle-orm": "^0.45.4",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15"
+  }
+}
