@@ -7,7 +7,7 @@
       "framework": "fastify",
       "installCommand": "cd ../.. && npm ci --include=dev",
       "buildCommand": "sh scripts/vercel-build.sh",
-      "entrypoint": "server.js"
+      "entrypoint": "server.mjs"
     }
   },
   "rewrites": [{ "source": "/(.*)", "destination": { "service": "api" } }],
