@@ -3,8 +3,8 @@
 Backend for Ohviana, the marketplace for dated trekking departures: the REST API, the outbox
 worker and the database. The website lives in **ohviana-web**.
 See [docs/RUNBOOK.md](docs/RUNBOOK.md) to run and test, and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
-to go live: a Vercel project (`vercel.json`: the API as a Fastify function, the worker as a
-daemon from `Dockerfile.worker`, both in Mumbai) at `api.ohviana.com`.
+to go live: a Vercel project (`vercel.json`: the API as a container function from `Dockerfile.api`, the
+worker as a daemon from `Dockerfile.worker`, both in Mumbai) at `api.ohviana.com`.
 
 ## Layout
 

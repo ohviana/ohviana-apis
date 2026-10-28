@@ -2,12 +2,12 @@
 
 Two Vercel projects, one per repository, and one database:
 
-| Component                                      | What                                                       | Where                                                                         |
-| ---------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| **Web** (ohviana-web)                          | Next.js marketplace + dashboards                           | Vercel project `ohviana-web`, `ohviana.com` (see that repository's README)    |
-| **API** (`apps/api`, `dist/server.js`)         | Fastify REST API                                           | Vercel project `ohviana-apis`: a Fastify function, `api.ohviana.com`          |
-| **Worker** (`apps/api`, `dist/worker/main.js`) | Outbox delivery (emails), maintenance, seat reconciliation | Same project: a Vercel Daemon (`Dockerfile.worker`), **1 instance is enough** |
-| **Database**                                   | Supabase Postgres + Auth                                   | A **separate production** Supabase project (Mumbai)                           |
+| Component                                      | What                                                       | Where                                                                                     |
+| ---------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Web** (ohviana-web)                          | Next.js marketplace + dashboards                           | Vercel project `ohviana-web`, `ohviana.com` (see that repository's README)                |
+| **API** (`apps/api`, `dist/server.js`)         | Fastify REST API                                           | Vercel project `ohviana-apis`: a container function (`Dockerfile.api`), `api.ohviana.com` |
+| **Worker** (`apps/api`, `dist/worker/main.js`) | Outbox delivery (emails), maintenance, seat reconciliation | Same project: a Vercel Daemon (`Dockerfile.worker`), **1 instance is enough**             |
+| **Database**                                   | Supabase Postgres + Auth                                   | A **separate production** Supabase project (Mumbai)                                       |
 
 `vercel.json` declares the API service, the worker daemon and the Mumbai region (`bom1`). The
 image in `apps/api/Dockerfile` still runs the API anywhere else (Render, Fly.io, a VM).
@@ -18,8 +18,9 @@ image in `apps/api/Dockerfile` still runs the API anywhere else (Render, Fly.io,
       empty (the repository root, where `vercel.json` is) and the framework preset as detected.
 - [ ] Add the environment variables below for **Production** (also Preview if you use previews:
       point those at a non-production database).
-- [ ] Deploy. Production builds run `apps/api/scripts/vercel-build.sh`, which builds the API and
-      then applies migrations through `MIGRATE_DATABASE_URL` before the new version goes live.
+- [ ] Set `PORT=4000`: Vercel sends traffic to the port in `PORT` (the image listens there).
+- [ ] Deploy. Building `Dockerfile.api` applies migrations through `MIGRATE_DATABASE_URL` (set it
+      for Production only, so previews skip them) before the new version goes live.
 - [ ] **Settings → Domains**: add `api.ohviana.com` (and `api.ohviana.in` if wanted) and create the
       DNS record Vercel shows.
 - [ ] Check `https://api.ohviana.com/v1/health/ready` and, in **Logs**, the worker's
@@ -50,7 +51,7 @@ image in `apps/api/Dockerfile` still runs the API anywhere else (Render, Fly.io,
 | `NODE_ENV`                                     | `production`                                                                                                                                                                                                                                                                          |
 | `AUTH_MODE`                                    | `supabase` (the temporary `dev` login is refused in production)                                                                                                                                                                                                                       |
 | `AUTH_JWT_SECRET`                              | 32+ random characters; signs email + password sessions (keep secret)                                                                                                                                                                                                                  |
-| `MIGRATE_DATABASE_URL`                         | Supabase **session pooler** URI (`pooler.supabase.com:5432`); production builds migrate through it                                                                                                                                                                                    |
+| `MIGRATE_DATABASE_URL`                         | Supabase **session pooler** URI (`pooler.supabase.com:5432`); Production image builds migrate through it                                                                                                                                                                              |
 | `DATABASE_URL`                                 | Supabase **transaction pooler** URI (`pooler.supabase.com:6543`) for API and worker. The session pooler (5432) allows only about 15 connections in total. Prepared statements are switched off automatically on 6543. Use the session pooler or direct URL when running `migrate.js`. |
 | `DB_POOL_MAX`                                  | `3` on Vercel: every function instance opens its own pool; the worker uses 3. Keep the total within the pooler limit.                                                                                                                                                                 |
 | `SUPABASE_URL`                                 | `https://<ref>.supabase.co` (token verification via public JWKS — no secret)                                                                                                                                                                                                          |

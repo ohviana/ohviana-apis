@@ -3,11 +3,8 @@
   "regions": ["bom1"],
   "services": {
     "api": {
-      "root": "apps/api",
-      "framework": "fastify",
-      "installCommand": "cd ../.. && npm ci --include=dev",
-      "buildCommand": "sh scripts/vercel-build.sh",
-      "entrypoint": "server.mjs"
+      "root": ".",
+      "entrypoint": "Dockerfile.api"
     }
   },
   "rewrites": [{ "source": "/(.*)", "destination": { "service": "api" } }],

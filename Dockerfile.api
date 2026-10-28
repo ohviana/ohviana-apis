@@ -1,0 +1,44 @@
+# API as a Vercel container function; see vercel.json. Lives at the repository root because the
+# build needs the whole workspace. Same build as apps/api/Dockerfile, plus migrations: builds
+# that get MIGRATE_DATABASE_URL (set for Production only) migrate before the image goes live.
+#   docker build -f Dockerfile.api -t ohviana-api . && docker run --env-file .env -p 4000:4000 ohviana-api
+
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/
+COPY packages/contracts/package.json packages/contracts/
+COPY packages/db/package.json packages/db/
+COPY packages/shared/package.json packages/shared/
+RUN npm ci --workspace @ohviana/api --include-workspace-root
+COPY tsconfig.base.json ./
+COPY packages packages
+COPY apps/api apps/api
+RUN npm run build -w @ohviana/api
+# dist/migrate.js reads ../migrations. Migrations are additive, so the live version keeps
+# working if this deploy fails later.
+RUN cp -r packages/db/migrations apps/api/migrations
+ARG MIGRATE_DATABASE_URL
+RUN if [ -n "$MIGRATE_DATABASE_URL" ]; then \
+      DATABASE_URL="$MIGRATE_DATABASE_URL" node apps/api/dist/migrate.js; \
+    else echo "MIGRATE_DATABASE_URL is not set: skipping migrations"; fi
+
+FROM node:22-alpine AS prod-deps
+WORKDIR /app
+COPY --from=build /app/package.json /app/package-lock.json ./
+COPY --from=build /app/apps/api/package.json apps/api/
+COPY --from=build /app/packages/contracts/package.json packages/contracts/
+COPY --from=build /app/packages/db/package.json packages/db/
+COPY --from=build /app/packages/shared/package.json packages/shared/
+# Runtime needs only the API's npm dependencies; workspace code is bundled into dist/.
+RUN npm ci --omit=dev --workspace @ohviana/api --ignore-scripts
+
+FROM node:22-alpine
+# Vercel sends traffic to PORT (set PORT=4000 in the project's environment variables).
+ENV NODE_ENV=production API_HOST=0.0.0.0 PORT=4000
+WORKDIR /app
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=build /app/apps/api/dist ./dist
+USER node
+EXPOSE 4000
+CMD ["node", "dist/server.js"]
