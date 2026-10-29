@@ -33,6 +33,7 @@ import { mediaRoutes } from './modules/media/routes';
 import { meRoutes } from './modules/me/routes';
 import { organizerRegistrationRoutes, organizerRoutes } from './modules/organizer/routes';
 import { publicRoutes } from './modules/public/routes';
+import { adminReviewRoutes, organizerReviewRoutes, reviewRoutes } from './modules/reviews/routes';
 import authPlugin from './plugins/auth';
 import dbPlugin from './plugins/db';
 import { MAX_UPLOAD_BYTES } from './lib/images';
@@ -177,6 +178,9 @@ export async function buildApp(config: Config, opts: BuildAppOptions = {}): Prom
   await app.register(mediaRoutes, { prefix: '/v1' });
   await app.register(bookingRoutes, { prefix: '/v1' });
   await app.register(organizerBookingRoutes, { prefix: '/v1/organizer' });
+  await app.register(reviewRoutes, { prefix: '/v1' });
+  await app.register(organizerReviewRoutes, { prefix: '/v1/organizer' });
+  await app.register(adminReviewRoutes, { prefix: '/v1/admin' });
 
   await opts.register?.(app);
 

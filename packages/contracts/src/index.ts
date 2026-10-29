@@ -7,3 +7,4 @@ export * from './organizer';
 export * from './public';
 export * from './bookings';
 export * from './auth';
+export * from './reviews';

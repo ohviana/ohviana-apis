@@ -12,6 +12,7 @@ import type { PublicBatch } from '@ohviana/contracts';
 import type { DIFFICULTIES } from '@ohviana/shared';
 import { badRequest } from '../../lib/errors';
 import { loadTrekPhotos } from '../media/service';
+import { organizerRating } from '../reviews/service';
 
 const DAY = 86_400_000;
 const MAX_WINDOW_DAYS = 366;
@@ -86,6 +87,7 @@ export function visibleBatchesQuery(db: Database) {
         slug: organizers.slug,
         city: organizers.city,
         logoUrl: organizers.logoUrl,
+        rating: organizerRating(),
       },
       trek: {
         id: organizerTreks.id,

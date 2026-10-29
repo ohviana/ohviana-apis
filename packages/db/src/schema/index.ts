@@ -6,3 +6,4 @@ export * from './batches';
 export * from './bookings';
 export * from './outbox';
 export * from './media';
+export * from './reviews';

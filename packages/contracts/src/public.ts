@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { DIFFICULTIES } from '@ohviana/shared';
 import { PaginationQuery, Uuid, paginated } from './common';
 import { TrekPhoto } from './organizer';
+import { OrganizerRating } from './reviews';
 
 const Timestamp = z.iso.datetime();
 
@@ -68,6 +69,8 @@ export const PublicOrganizerRef = z.object({
   slug: z.string(),
   city: z.string().nullable(),
   logoUrl: z.string().nullable(),
+  /** From travellers' reviews; null until the organizer has one. */
+  rating: OrganizerRating.nullable(),
 });
 
 export const PublicBatch = z.object({

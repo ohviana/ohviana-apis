@@ -14,6 +14,8 @@ export interface AuthClaims {
   userId: string;
   email: string | null;
   phone: string | null;
+  /** True only for a phone-code sign-in: `phone` was proven by SMS, not typed into a profile. */
+  phoneVerified?: boolean;
   fullName: string | null;
   sessionId: string | null;
 }
@@ -100,12 +102,14 @@ export interface IssuedToken {
 export async function issueSessionToken(
   secret: string,
   user: { id: string; email: string | null; phone?: string | null },
+  opts: { phoneVerified?: boolean } = {},
 ): Promise<IssuedToken> {
   const exp = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
   const accessToken = await new SignJWT({
     role: 'authenticated',
     email: user.email ?? '',
     phone: user.phone ?? '',
+    ...(opts.phoneVerified && user.phone ? { phone_verified: true } : {}),
   })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuer(OHVIANA_ISSUER)
@@ -146,7 +150,12 @@ export function createCompositeVerifier(opts: {
 
 function createLocalSessionVerifier(key: Uint8Array): TokenVerifier {
   return async (token) => {
-    let payload: JWTPayload & { email?: string; phone?: string; role?: string };
+    let payload: JWTPayload & {
+      email?: string;
+      phone?: string;
+      phone_verified?: boolean;
+      role?: string;
+    };
     try {
       ({ payload } = await jwtVerify(token, key, {
         issuer: OHVIANA_ISSUER,
@@ -164,6 +173,7 @@ function createLocalSessionVerifier(key: Uint8Array): TokenVerifier {
       userId: payload.sub,
       email: blankToNull(payload.email)?.toLowerCase() ?? null,
       phone: blankToNull(payload.phone),
+      phoneVerified: payload.phone_verified === true && !!blankToNull(payload.phone),
       fullName: null,
       sessionId: null,
     };

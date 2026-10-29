@@ -172,7 +172,8 @@ export const authRoutes: FastifyPluginAsyncZod<AuthRoutesOptions> = async (app, 
       const user = await verifyOtp(otp, request.body.phone, request.body.code);
       // Named as a trek lead on some organizer's batches? This sign-in unlocks those batches.
       await grantLeadAccess(app.db, user.id, user.phone);
-      return { ...(await issueSessionToken(opts.secret, user)), user };
+      // The code proved this number, so the session can act for it (e.g. review a trip).
+      return { ...(await issueSessionToken(opts.secret, user, { phoneVerified: true })), user };
     },
   );
 };

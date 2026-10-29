@@ -33,6 +33,10 @@ export type BookingSource = (typeof BOOKING_SOURCES)[number];
 export const BOOKING_STATUSES = ['confirmed', 'cancelled'] as const;
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
+/** What a trip review rates besides the overall score; each one is optional (e.g. no stay). */
+export const REVIEW_ASPECTS = ['stay', 'bus', 'food', 'leader', 'safety'] as const;
+export type ReviewAspect = (typeof REVIEW_ASPECTS)[number];
+
 /** What a trek photo shows; organizers tag each upload. */
 export const PHOTO_CATEGORIES = [
   'destination',

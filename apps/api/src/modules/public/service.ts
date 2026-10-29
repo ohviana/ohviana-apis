@@ -21,6 +21,7 @@ import type {
 import { escapeLike } from '@ohviana/shared';
 import { AppError, notFound } from '../../lib/errors';
 import { mediaPaths } from '../media/service';
+import { organizerRating } from '../reviews/service';
 import { decodeCursor, toPage } from '../../lib/pagination';
 import {
   batchCursorCondition,
@@ -243,6 +244,7 @@ const organizerColumns = () => ({
   slug: organizers.slug,
   city: organizers.city,
   logoUrl: organizers.logoUrl,
+  rating: organizerRating(),
   tagline: organizers.tagline,
   description: organizers.description,
   upcomingBatchCount: upcomingBatchCount(),
