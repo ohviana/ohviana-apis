@@ -1,0 +1,64 @@
+name: Release to production
+
+# The production Vercel project deploys the `production` branch, and only this workflow moves it.
+# Every merge to main already deployed to test.ohviana.com; this ships a commit from main that
+# passed CI. Release ohviana-apis first, then ohviana-web. Rollback: run it with an older commit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: 'Commit from main to release (empty = latest main)'
+        required: false
+        default: ''
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # With required reviewers on the "production" environment, GitHub asks for approval here.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pick the commit
+        id: pick
+        run: |
+          sha=$(git rev-parse --verify "${INPUT_COMMIT:-origin/main}^{commit}")
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            echo "::error::$sha is not on main. Only commits that went through test can be released."
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Releasing $(git log -1 --format='%h %s' "$sha")"
+        env:
+          INPUT_COMMIT: ${{ inputs.commit }}
+
+      - name: Require green CI on that commit
+        run: |
+          conclusion=$(gh run list --workflow ci.yml --branch main --commit "$SHA" \
+            --json conclusion --jq '[.[] | select(.conclusion == "success")] | length')
+          if [ "$conclusion" = "0" ]; then
+            echo "::error::CI has not passed on $SHA yet. Wait for it, or release an earlier green commit."
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.pick.outputs.sha }}
+
+      - name: Move production to it
+        run: |
+          # Force, so releasing an older commit rolls production back.
+          git push --force origin "$SHA:refs/heads/production"
+          echo "### Released $(git log -1 --format='%h %s' "$SHA")" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          SHA: ${{ steps.pick.outputs.sha }}

@@ -1,5 +1,8 @@
 # Deploying Ohviana
 
+Test and production run side by side: see [ENVIRONMENTS.md](ENVIRONMENTS.md) for the setup
+and the main + Release button flow. This page describes one environment.
+
 Two Vercel projects, one per repository, and one database:
 
 | Component                                      | What                                                       | Where                                                                                     |
