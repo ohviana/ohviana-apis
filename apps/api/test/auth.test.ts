@@ -155,6 +155,58 @@ describe('/v1/me', () => {
   });
 });
 
+describe('Google and email-code sign-in for existing accounts', () => {
+  /** An account created before Supabase sign-in (e.g. email + password), with its own id. */
+  async function existingOrganizerAccount() {
+    const email = `owner-${randomUUID()}@test.ohviana.dev`;
+    const userId = await fx.user({ email });
+    const organizerId = await fx.organizer();
+    await fx.member(organizerId, userId, 'owner');
+    return { email, userId, organizerId };
+  }
+  const meAs = async (token: string) =>
+    (await app.inject({ method: 'GET', url: '/v1/me', headers: bearer(token) })).json();
+
+  it.each([
+    ['Google', 'oauth'],
+    ['an email code', 'otp'],
+  ])('signs in with %s to the same account, keeping its organizer', async (_how, method) => {
+    const { email, userId, organizerId } = await existingOrganizerAccount();
+    const sub = fx.trackUser(randomUUID());
+    const token = await keys.sign({ sub, email, amr: [method] });
+
+    expect((await meAs(token)).user.id).toBe(userId);
+    const org = await app.inject({ method: 'GET', url: '/test/org/read', headers: bearer(token) });
+    expect(org.statusCode, org.body).toBe(200);
+    expect(org.json().organizerId).toBe(organizerId);
+
+    const [row] = await app.db.select().from(users).where(eq(users.id, userId));
+    expect(row!.authUserId).toBe(sub);
+    // No second account was created for the Supabase id.
+    expect(await app.db.select().from(users).where(eq(users.id, sub))).toEqual([]);
+  });
+
+  it('stays linked when the Supabase email later changes', async () => {
+    const { email, userId } = await existingOrganizerAccount();
+    const sub = fx.trackUser(randomUUID());
+    await meAs(await keys.sign({ sub, email, amr: ['oauth'] }));
+    const renamed = await keys.sign({ sub, email: `new-${email}`, amr: ['oauth'] });
+    expect((await meAs(renamed)).user.id).toBe(userId);
+  });
+
+  it('never links on an email the sign-in did not prove', async () => {
+    const { email, userId } = await existingOrganizerAccount();
+    for (const amr of [undefined, ['password']]) {
+      const sub = fx.trackUser(randomUUID());
+      const me = await meAs(await keys.sign({ sub, email, ...(amr ? { amr } : {}) }));
+      expect(me.user.id).toBe(sub);
+      expect(me.user.id).not.toBe(userId);
+      // The address stays with its owner.
+      expect(me.user.email).toBeNull();
+    }
+  });
+});
+
 describe('admin guard', () => {
   it('allows platform admins', async () => {
     const admin = await fx.user({ admin: true });

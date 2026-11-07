@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import { pgConstraintName, platformAdmins, users, type Database } from '@ohviana/db';
 import type { AuthClaims } from '../../auth/verifier';
 import { AppError } from '../../lib/errors';
@@ -8,23 +8,70 @@ const SYNC_TTL_MS = 10 * 60_000;
 const MAX_CACHE_ENTRIES = 10_000;
 
 /**
- * Keeps `public.users` in step with the identity in the access token. Writes only when the
- * claims changed or the cache entry expired, so most requests cost no database write.
+ * Keeps `public.users` in step with the identity in the access token and returns the claims
+ * for the account the caller acts as. Writes only when the claims changed or the cache entry
+ * expired, so most requests cost no database write.
+ *
+ * A Supabase sign-in (Google or an email code) for an email that already has an account (an
+ * organizer who used email + password, say) acts as that account: it is linked through
+ * `users.auth_user_id` on first use. Only proven emails link, so nobody can take over an
+ * account by typing someone else's address.
  */
 export function createUserSync(db: Database) {
   const seen = new Map<string, { fingerprint: string; at: number }>();
+  const links = new Map<string, { userId: string; at: number }>();
 
-  return async function syncUser(claims: AuthClaims): Promise<void> {
-    const fingerprint = `${claims.email}|${claims.phone}|${claims.fullName}`;
-    const cached = seen.get(claims.userId);
+  async function accountFor(claims: AuthClaims): Promise<string> {
+    if (claims.provider !== 'supabase') return claims.userId;
+    const sub = claims.userId;
+    const cached = links.get(sub);
+    if (cached && Date.now() - cached.at < SYNC_TTL_MS) return cached.userId;
+
+    const remember = (userId: string) => {
+      if (links.size >= MAX_CACHE_ENTRIES) links.clear();
+      links.set(sub, { userId, at: Date.now() });
+      return userId;
+    };
+    const known = async () =>
+      (
+        await db
+          .select({ id: users.id })
+          .from(users)
+          .where(or(eq(users.id, sub), eq(users.authUserId, sub)))
+          .limit(1)
+      )[0]?.id;
+
+    const existing = await known();
+    if (existing) return remember(existing);
+    if (!claims.email || !claims.emailProven) return sub;
+
+    const [linked] = await db
+      .update(users)
+      .set({ authUserId: sub, updatedAt: new Date() })
+      .where(and(sql`lower(${users.email}) = ${claims.email}`, isNull(users.authUserId)))
+      .returning({ id: users.id });
+    if (linked) return remember(linked.id);
+    // A parallel request may have linked it a moment ago.
+    return remember((await known()) ?? sub);
+  }
+
+  return async function syncUser(claims: AuthClaims): Promise<AuthClaims> {
+    const resolved = { ...claims, userId: await accountFor(claims) };
+    const fingerprint = `${resolved.email}|${resolved.phone}|${resolved.fullName}`;
+    const cached = seen.get(resolved.userId);
     if (cached && cached.fingerprint === fingerprint && Date.now() - cached.at < SYNC_TTL_MS) {
-      return;
+      return resolved;
     }
 
     const upsert = (email: string | null) =>
       db
         .insert(users)
-        .values({ id: claims.userId, email, phone: claims.phone, fullName: claims.fullName })
+        .values({
+          id: resolved.userId,
+          email,
+          phone: resolved.phone,
+          fullName: resolved.fullName,
+        })
         .onConflictDoUpdate({
           target: users.id,
           // Token claims fill in blanks but never overwrite edits made through PATCH /v1/me.
@@ -37,7 +84,7 @@ export function createUserSync(db: Database) {
         });
 
     try {
-      await upsert(claims.email);
+      await upsert(resolved.email);
     } catch (err) {
       // A stale row (e.g. a deleted-and-recreated auth user) still holds this email. Keep the
       // request working without the email rather than failing authentication.
@@ -46,7 +93,8 @@ export function createUserSync(db: Database) {
     }
 
     if (seen.size >= MAX_CACHE_ENTRIES) seen.clear();
-    seen.set(claims.userId, { fingerprint, at: Date.now() });
+    seen.set(resolved.userId, { fingerprint, at: Date.now() });
+    return resolved;
   };
 }
 
@@ -92,5 +140,6 @@ export async function resolveDevUser(db: Database, rawEmail: string): Promise<Au
     phone: null,
     fullName: null,
     sessionId: null,
+    provider: 'dev',
   };
 }

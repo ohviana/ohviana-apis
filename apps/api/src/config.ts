@@ -37,8 +37,8 @@ const EnvSchema = z.object({
    */
   AUTH_MODE: z.enum(['supabase', 'dev']).default('supabase'),
   /**
-   * Signs session tokens for email + password sign-in (32+ random characters). Without it the
-   * password endpoints are off and only Supabase tokens are accepted.
+   * Signs session tokens for phone-code sign-in (32+ random characters). Without it the phone
+   * endpoints are off and only Supabase tokens (Google, email codes) are accepted.
    */
   AUTH_JWT_SECRET: z.string().min(32).optional(),
   /**

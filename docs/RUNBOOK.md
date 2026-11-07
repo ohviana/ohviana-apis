@@ -25,27 +25,46 @@ npx -w @ohviana/e2e playwright install chromium   # browser for the e2e tests (~
 
 ---
 
-## Sign-in (email + password)
+## Sign-in (Google or an email code)
 
-`.env` has `NEXT_PUBLIC_AUTH_MODE=password` and an `AUTH_JWT_SECRET`: people create an account
-with email + password on `/login` — no confirmation emails, no Supabase step. Organizers then
-register their organization from the Dashboard (the only step that needs admin approval).
+Organizers, admins and travellers sign in on `/login` (and at checkout) with **Continue with
+Google** or **Email me a code**. Both run through Supabase Auth; Supabase sends the 6-digit code
+through **Brevo** (SMTP). Web: `NEXT_PUBLIC_AUTH_MODE=supabase` plus the Supabase URL and
+publishable key. API: `AUTH_MODE=supabase` and `SUPABASE_URL`.
 
-Set or reset any account's password (also creates the account if missing):
+Existing accounts keep working: the first Google or email-code sign-in with an account's email
+links to it (`users.auth_user_id`), keeping its organizer and admin access. Only proven emails
+link. Email + password sign-in is retired; `user_credentials` is no longer read.
 
-```powershell
-npm run user:set-password -- someone@example.com            # prints a generated password
-npm run user:set-password -- someone@example.com 'NewPass123'
-```
+One-time setup (dashboards, not code):
 
-Other modes: `supabase` (magic-link email) or `dev` (local testing, email only; also set the
-API's `AUTH_MODE=dev`). Restart `dev:api` and `dev:web` after changing modes.
+1. **Brevo** → Senders, Domains & Dedicated IPs: authenticate `ohviana.com` (SPF, DKIM, DMARC
+   records in DNS) and add a sender such as `no-reply@ohviana.com`. Then SMTP & API → SMTP:
+   note the login and create an **SMTP key**.
+2. **Supabase** → Authentication → Emails → SMTP Settings: enable custom SMTP with host
+   `smtp-relay.brevo.com`, port `587`, the Brevo login as username, the SMTP key as password,
+   and the sender above. Raise Authentication → Rate Limits → emails per hour (the default is
+   tiny).
+3. **Supabase** → Authentication → Emails → **Magic Link** template: show the code, e.g.
+   `<p>Your Ohviana sign-in code is <strong>{{ .Token }}</strong>. It expires in 1 hour.</p>`
+   (without `{{ .Token }}` people get a link instead of a code). Keep Providers → Email enabled
+   with **Confirm email** on.
+4. **Google Cloud** → APIs & Services → Credentials: create an OAuth client (Web application).
+   Authorized redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback`. On the OAuth
+   consent screen, publish the app (Testing mode only allows listed test users).
+5. **Supabase** → Authentication → Providers → **Google**: enable, paste the client ID and secret.
+6. **Supabase** → Authentication → URL Configuration: Site URL `https://ohviana.com`; Redirect
+   URLs `https://ohviana.com/auth/callback`, `http://localhost:3000/auth/callback` and your
+   Vercel preview pattern (e.g. `https://*-ohviana.vercel.app/auth/callback`).
 
-## Customer sign-in (mobile + SMS code)
+Local testing without Supabase: `dev` mode (email only, no code; set both
+`NEXT_PUBLIC_AUTH_MODE=dev` and the API's `AUTH_MODE=dev`). Restart `dev:api` and `dev:web`
+after changing modes.
 
-Customers never see `/login`. At checkout, **Confirm booking** texts a 6-digit code to the
-contact mobile; entering it signs them in (creating their account the first time) and books.
-**My bookings** signs in the same way. Bookings always belong to a signed-in account.
+## Phone sign-in (SMS code): reviews and trip leads
+
+Travellers review a finished trip by proving the mobile number they travelled with, and trip
+leads unlock the departures they lead the same way. Both use a 6-digit SMS code from the API.
 
 No SMS provider is connected yet (`SMS_PROVIDER=log`): the code appears in the `dev:api` window:
 

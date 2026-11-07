@@ -25,8 +25,7 @@
     "db:generate": "npm run db:generate -w @ohviana/db",
     "db:studio": "npm run db:studio -w @ohviana/db",
     "admin:grant": "npm run admin:grant -w @ohviana/db --",
-    "dev:worker": "npm run dev:worker -w @ohviana/api",
-    "user:set-password": "npm run user:set-password -w @ohviana/api --"
+    "dev:worker": "npm run dev:worker -w @ohviana/api"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
