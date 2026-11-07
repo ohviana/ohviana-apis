@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, ilike, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, ilike, inArray, isNull, lt, ne, or, sql, type SQL } from 'drizzle-orm';
 import {
   batches,
   catalogTreks,
@@ -13,6 +13,7 @@ import type {
   PublicBatch,
   PublicBatchQuery,
   PublicOrganizerDetail,
+  PublicSitemap,
   PublicTrekDetail,
   PublicTrekSummary,
   BatchSearchQuery,
@@ -356,4 +357,65 @@ export async function directLanding(db: Database, token: string): Promise<Direct
     eq(organizers.id, link.organizerId),
   );
   return { organizer, batch: null, batches: list.items };
+}
+
+// ---------- Sitemap ----------
+
+/**
+ * Every indexable trek and organizer page with its last change, for the web sitemap. A page's
+ * <lastmod> is its own edit or its latest departure change (published, cancelled or completed:
+ * drafts never show), whichever is newer, since both pages list departures.
+ */
+export async function sitemap(db: Database): Promise<PublicSitemap> {
+  const shown = ne(batches.status, 'draft');
+  const trekActivity = db
+    .select({
+      catalogTrekId: organizerTreks.catalogTrekId,
+      lastChange: sql<Date>`max(${batches.updatedAt})`.as('last_change'),
+    })
+    .from(batches)
+    .innerJoin(organizerTreks, eq(organizerTreks.id, batches.organizerTrekId))
+    .where(shown)
+    .groupBy(organizerTreks.catalogTrekId)
+    .as('trek_activity');
+  const organizerActivity = db
+    .select({
+      organizerId: batches.organizerId,
+      lastChange: sql<Date>`max(${batches.updatedAt})`.as('last_change'),
+    })
+    .from(batches)
+    .where(shown)
+    .groupBy(batches.organizerId)
+    .as('organizer_activity');
+
+  const [treks, orgs] = await Promise.all([
+    db
+      .select({
+        slug: catalogTreks.slug,
+        // greatest() skips nulls: a trek with no departures keeps its own date.
+        updatedAt: sql`greatest(${catalogTreks.updatedAt}, ${trekActivity.lastChange})`.mapWith(
+          catalogTreks.updatedAt,
+        ),
+      })
+      .from(catalogTreks)
+      .leftJoin(trekActivity, eq(trekActivity.catalogTrekId, catalogTreks.id))
+      .where(eq(catalogTreks.status, 'published'))
+      .orderBy(asc(catalogTreks.slug)),
+    db
+      .select({
+        slug: organizers.slug,
+        updatedAt: sql`greatest(${organizers.updatedAt}, ${organizerActivity.lastChange})`.mapWith(
+          organizers.updatedAt,
+        ),
+      })
+      .from(organizers)
+      .leftJoin(organizerActivity, eq(organizerActivity.organizerId, organizers.id))
+      .where(eq(organizers.status, 'approved'))
+      .orderBy(asc(organizers.slug)),
+  ]);
+  const entry = (r: { slug: string; updatedAt: Date }) => ({
+    slug: r.slug,
+    updatedAt: r.updatedAt.toISOString(),
+  });
+  return { treks: treks.map(entry), organizers: orgs.map(entry) };
 }

@@ -185,3 +185,18 @@ export const DirectLinkLanding = z.object({
 export type DirectLinkLanding = z.infer<typeof DirectLinkLanding>;
 
 export const TokenParams = z.object({ token: z.string().min(16).max(64) });
+
+// ---------- Sitemap ----------
+
+/** One indexable page: its slug and when its content last changed (for <lastmod>). */
+export const SitemapEntry = z.object({ slug: z.string(), updatedAt: Timestamp });
+
+/**
+ * Every indexable trek and organizer page in one response, for the web app's sitemap.xml.
+ * Same visibility as the public pages: published treks, approved organizers.
+ */
+export const PublicSitemap = z.object({
+  treks: z.array(SitemapEntry),
+  organizers: z.array(SitemapEntry),
+});
+export type PublicSitemap = z.infer<typeof PublicSitemap>;
