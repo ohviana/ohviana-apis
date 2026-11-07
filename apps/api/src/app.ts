@@ -100,6 +100,12 @@ export async function buildApp(config: Config, opts: BuildAppOptions = {}): Prom
 
   app.addHook('onSend', async (request, reply) => {
     reply.header(REQUEST_ID_HEADER, request.id);
+    // The website is what search engines should index, not this API's JSON (which would compete
+    // with it as thin duplicate pages). Trek photos stay indexable for image search.
+    const type = String(reply.getHeader('content-type') ?? '');
+    if (!type.startsWith('image/') && !reply.hasHeader('x-robots-tag')) {
+      reply.header('x-robots-tag', 'noindex');
+    }
   });
 
   await app.register(errorHandler);
