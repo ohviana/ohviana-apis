@@ -7,3 +7,5 @@ package-lock.json
 next-env.d.ts
 test-results
 playwright-report
+# Vendored agent skills (npx skills add): managed by skills-lock.json hashes, not hand-edited.
+.agents
