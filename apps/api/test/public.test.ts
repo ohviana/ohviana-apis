@@ -437,6 +437,40 @@ describe('direct links', () => {
   });
 });
 
+describe('sitemap', () => {
+  type Entry = { slug: string; updatedAt: string };
+  const sitemap = async () => (await get('/v1/sitemap')).json() as Record<string, Entry[]>;
+  const slugs = (list: Entry[]) => list.map((e) => e.slug);
+
+  it('lists exactly the public trek and organizer pages', async () => {
+    const res = await get('/v1/sitemap');
+    expect(res.statusCode, res.body).toBe(200);
+    const { treks, organizers: orgs } = res.json() as Record<string, Entry[]>;
+    expect(slugs(treks!)).toEqual(expect.arrayContaining([w.alpha.slug, w.bravo.slug]));
+    expect(slugs(treks!)).not.toContain(w.draftCatalog.slug);
+    expect(slugs(orgs!)).toEqual(expect.arrayContaining([w.org1Slug, w.org2Slug]));
+    expect(slugs(orgs!)).not.toContain(w.pendingSlug);
+    expect(res.headers['cache-control']).toContain('s-maxage=3600');
+  });
+
+  it('dates a page by its latest visible departure change, ignoring drafts', async () => {
+    const [touched] = await app.db
+      .update(batches)
+      .set({ pricePaise: 310_000 })
+      .where(eq(batches.id, w.b.org1Alpha.id))
+      .returning({ updatedAt: batches.updatedAt });
+    const at = touched!.updatedAt.toISOString();
+    let map = await sitemap();
+    expect(map.treks!.find((e) => e.slug === w.alpha.slug)?.updatedAt).toBe(at);
+    expect(map.organizers!.find((e) => e.slug === w.org1Slug)?.updatedAt).toBe(at);
+
+    // Editing a draft changes nothing a visitor can see.
+    await app.db.update(batches).set({ pricePaise: 320_000 }).where(eq(batches.id, w.b.draft.id));
+    map = await sitemap();
+    expect(map.treks!.find((e) => e.slug === w.alpha.slug)?.updatedAt).toBe(at);
+  });
+});
+
 describe('caching', () => {
   it('lets shared caches hold anonymous responses briefly, but never personalised ones', async () => {
     expect((await get(`/v1/treks/${w.alpha.slug}`)).headers['cache-control']).toContain(
