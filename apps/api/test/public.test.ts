@@ -482,6 +482,14 @@ describe('caching', () => {
   });
 });
 
+describe('search engines', () => {
+  it('keeps API JSON out of search results (the website is what gets indexed)', async () => {
+    expect((await get(`/v1/treks/${w.alpha.slug}`)).headers['x-robots-tag']).toBe('noindex');
+    expect((await get('/v1/sitemap')).headers['x-robots-tag']).toBe('noindex');
+    expect((await get('/v1/treks/no-such-trek')).headers['x-robots-tag']).toBe('noindex');
+  });
+});
+
 describe('suspension', () => {
   it("removes a suspended organizer's departures from the marketplace immediately", async () => {
     await app.db.update(organizers).set({ status: 'suspended' }).where(eq(organizers.id, w.org2));
