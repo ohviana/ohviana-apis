@@ -10,6 +10,7 @@ import {
   BatchSearchQuery,
   PublicOrganizerDetail,
   PublicOrganizerList,
+  PublicSitemap,
   PublicTrekDetail,
   PublicTrekList,
   SlugParams,
@@ -25,6 +26,7 @@ import {
   searchOrganizers,
   searchBatches,
   searchTreks,
+  sitemap,
   trekBatches,
 } from './service';
 import { LIMITS } from '../../plugins/rate-limit';
@@ -153,6 +155,22 @@ export const publicRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => getPublicBatch(app.db, request.params.id),
+  );
+
+  app.get(
+    '/sitemap',
+    {
+      schema: {
+        tags,
+        summary: 'Every indexable trek and organizer page with its last change (for sitemap.xml)',
+        response: { 200: PublicSitemap, ...errors },
+      },
+    },
+    async (_request, reply) =>
+      // Crawlers fetch the sitemap rarely and it lists pages, not seats: an hour is fresh enough.
+      reply
+        .header('cache-control', 'public, max-age=0, s-maxage=3600, stale-while-revalidate=86400')
+        .send(await sitemap(app.db)),
   );
 
   app.get(
