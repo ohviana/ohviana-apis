@@ -18,7 +18,20 @@ export interface AuthClaims {
   phoneVerified?: boolean;
   fullName: string | null;
   sessionId: string | null;
+  /**
+   * Who issued the identity: Supabase (Google or an email code), the API (phone code) or the
+   * dev login. Only a Supabase sign-in with a proven email may be linked to an existing account.
+   */
+  provider?: 'supabase' | 'ohviana' | 'dev';
+  /** Supabase only: the email was proven by this sign-in (Google, or a code sent to it). */
+  emailProven?: boolean;
 }
+
+/**
+ * Supabase `amr` methods that prove the person controls the email: Google (oauth) and codes or
+ * links sent to the inbox. A Supabase password sign-in proves nothing about the email.
+ */
+const EMAIL_PROVING_METHODS = new Set(['oauth', 'otp', 'magiclink', 'email/signup']);
 
 export type TokenVerifier = (token: string) => Promise<AuthClaims>;
 
@@ -29,6 +42,7 @@ interface SupabasePayload extends JWTPayload {
   session_id?: string;
   is_anonymous?: boolean;
   user_metadata?: { full_name?: unknown; name?: unknown };
+  amr?: { method?: unknown }[];
 }
 
 export interface JwtVerifierOptions {
@@ -72,6 +86,12 @@ export function createJwtVerifier(opts: JwtVerifierOptions): TokenVerifier {
       phone: blankToNull(payload.phone),
       fullName: blankToNull(meta.full_name) ?? blankToNull(meta.name),
       sessionId: blankToNull(payload.session_id),
+      provider: 'supabase',
+      emailProven:
+        Array.isArray(payload.amr) &&
+        payload.amr.some(
+          (m) => typeof m?.method === 'string' && EMAIL_PROVING_METHODS.has(m.method),
+        ),
     };
   };
 }
@@ -88,7 +108,7 @@ export function createSupabaseVerifier(supabaseUrl: string): TokenVerifier {
   });
 }
 
-// ---------- Ohviana-issued tokens (email + password sign-in) ----------
+// ---------- Ohviana-issued tokens (phone-code sign-in) ----------
 
 export const OHVIANA_ISSUER = 'ohviana';
 const SESSION_TTL_SECONDS = 7 * 24 * 3600;
@@ -98,7 +118,7 @@ export interface IssuedToken {
   expiresAt: string;
 }
 
-/** Signs a session token for a password or phone sign-in (HS256, our own issuer). */
+/** Signs a session token for a phone sign-in (HS256, our own issuer). */
 export async function issueSessionToken(
   secret: string,
   user: { id: string; email: string | null; phone?: string | null },
@@ -176,6 +196,7 @@ function createLocalSessionVerifier(key: Uint8Array): TokenVerifier {
       phoneVerified: payload.phone_verified === true && !!blankToNull(payload.phone),
       fullName: null,
       sessionId: null,
+      provider: 'ohviana',
     };
   };
 }

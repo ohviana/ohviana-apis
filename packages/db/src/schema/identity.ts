@@ -12,13 +12,17 @@ import {
 import { createdAt, id, ts, updatedAt } from './_helpers';
 
 /**
- * Application profile for an authenticated person. `id` mirrors Supabase `auth.users.id`
- * (the auth.users FK and sync trigger arrive with Phase 3).
+ * Application profile for an authenticated person. `id` is the Supabase `auth.users.id` for
+ * people who first signed in with Supabase; accounts created by the API (phone code, the
+ * retired email + password) have their own id and gain `auth_user_id` when their owner later
+ * signs in with Google or an email code for the same, proven email.
  */
 export const users = pgTable(
   'users',
   {
     id: uuid('id').primaryKey(),
+    /** The Supabase `auth.users.id` linked to this account, when it differs from `id`. */
+    authUserId: uuid('auth_user_id'),
     email: text('email'),
     fullName: text('full_name'),
     phone: text('phone'),
@@ -27,6 +31,7 @@ export const users = pgTable(
   },
   (t) => [
     uniqueIndex('users_email_lower_uq').on(sql`lower(${t.email})`),
+    uniqueIndex('users_auth_user_id_uq').on(t.authUserId),
     // Phone sign-in finds the account by its number.
     index('users_phone_idx').on(t.phone),
   ],
@@ -59,8 +64,8 @@ export const adminAuditLog = pgTable(
 ).enableRLS();
 
 /**
- * Email + password sign-in handled by the Ohviana API (no third-party auth, no emails).
- * Stores only a salted scrypt hash. One row per user that has a password.
+ * RETIRED: email + password sign-in, replaced by Google and email codes (Supabase). Nothing
+ * reads or writes it any more; kept so existing rows aren't lost until a migration drops it.
  */
 export const userCredentials = pgTable('user_credentials', {
   userId: uuid('user_id')

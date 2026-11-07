@@ -106,6 +106,13 @@
       "when": 1793263994008,
       "tag": "0014_trip_reviews",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1794072064361,
+      "tag": "0015_link_supabase_accounts",
+      "breakpoints": true
     }
   ]
 }

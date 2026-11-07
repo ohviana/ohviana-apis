@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
+import { SignJWT } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { batches, organizerTreks, phoneOtps, users } from '@ohviana/db';
 import { buildApp } from '../src/app';
@@ -202,5 +203,59 @@ describe('phone sign-in with an SMS code', () => {
     expect(() => testConfig({ NODE_ENV: 'production', OTP_DEV_CODE: '123456' })).toThrow(
       /OTP_DEV_CODE/,
     );
+  });
+});
+
+describe('Ohviana session tokens (issued by phone sign-in)', () => {
+  const me = (token: string) =>
+    app.inject({ method: 'GET', url: '/v1/me', headers: { authorization: `Bearer ${token}` } });
+
+  it('rejects tokens signed with another secret, expired ones, or a forged algorithm', async () => {
+    const forge = (secret: string, exp: string) =>
+      new SignJWT({ role: 'authenticated' })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuer('ohviana')
+        .setAudience('authenticated')
+        .setSubject(crypto.randomUUID())
+        .setIssuedAt()
+        .setExpirationTime(exp)
+        .sign(new TextEncoder().encode(secret));
+    expect((await me(await forge('another-secret-another-secret-123456', '1h'))).statusCode).toBe(
+      401,
+    );
+    expect((await me(await forge(SECRET, '-1m'))).statusCode).toBe(401);
+    const unsigned = `${Buffer.from(JSON.stringify({ alg: 'none' })).toString('base64url')}.${Buffer.from(
+      JSON.stringify({
+        iss: 'ohviana',
+        aud: 'authenticated',
+        sub: crypto.randomUUID(),
+        role: 'authenticated',
+        exp: 9e9,
+      }),
+    ).toString('base64url')}.`;
+    expect((await me(unsigned)).statusCode).toBe(401);
+  });
+
+  it('is switched off when no session secret is configured', async () => {
+    const plain = await buildApp(testConfig());
+    await plain.ready();
+    const res = await plain.inject({
+      method: 'POST',
+      url: '/v1/auth/otp/send',
+      payload: { phone: '+919000000000' },
+    });
+    expect(res.statusCode).toBe(404);
+    await plain.close();
+  });
+
+  it('no longer offers email + password sign-in (Google and email codes replace it)', async () => {
+    for (const url of ['/v1/auth/signin', '/v1/auth/signup']) {
+      const res = await app.inject({
+        method: 'POST',
+        url,
+        payload: { email: 'a@b.co', password: 'long-enough-password' },
+      });
+      expect(res.statusCode, url).toBe(404);
+    }
   });
 });

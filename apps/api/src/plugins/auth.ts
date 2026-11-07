@@ -108,16 +108,13 @@ export default fp<AuthPluginOptions>(
     app.addHook('onRequest', async (request) => {
       const devEmail = request.headers[DEV_USER_HEADER];
       if (opts.devLogin && typeof devEmail === 'string' && !request.headers.authorization) {
-        const claims = await resolveDevUser(app.db, devEmail);
-        await syncUser(claims);
-        request.auth = claims;
+        request.auth = await syncUser(await resolveDevUser(app.db, devEmail));
         return;
       }
       const token = bearerToken(request);
       if (!token) return;
-      const claims = await opts.verifier(token);
-      await syncUser(claims);
-      request.auth = claims;
+      // The account to act as: a linked Supabase sign-in becomes its existing account.
+      request.auth = await syncUser(await opts.verifier(token));
     });
 
     const user: Guard = async (request) => {

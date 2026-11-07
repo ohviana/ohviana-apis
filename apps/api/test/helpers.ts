@@ -53,6 +53,8 @@ export interface TokenOptions {
   issuer?: string;
   expiresIn?: string;
   isAnonymous?: boolean;
+  /** How the person signed in (Supabase `amr`), e.g. ['oauth'] for Google, ['otp'] for a code. */
+  amr?: string[];
 }
 
 /** An ES256 key pair standing in for the Supabase project's signing key. */
@@ -72,6 +74,7 @@ export async function createTestKeys() {
       is_anonymous: o.isAnonymous ?? false,
       session_id: randomUUID(),
       user_metadata: o.fullName ? { full_name: o.fullName } : {},
+      ...(o.amr ? { amr: o.amr.map((method) => ({ method, timestamp: 0 })) } : {}),
     })
       .setProtectedHeader({ alg: 'ES256', kid: 'test-key' })
       .setSubject(o.sub ?? randomUUID())

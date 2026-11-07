@@ -1,5 +1,8 @@
 # Deploying Ohviana
 
+Test and production run side by side: see [ENVIRONMENTS.md](ENVIRONMENTS.md) for the setup
+and the main + Release button flow. This page describes one environment.
+
 Two Vercel projects, one per repository, and one database:
 
 | Component                                      | What                                                       | Where                                                                                     |
@@ -50,7 +53,7 @@ image in `apps/api/Dockerfile` still runs the API anywhere else (Render, Fly.io,
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `NODE_ENV`                                     | `production`                                                                                                                                                                                                                                                                          |
 | `AUTH_MODE`                                    | `supabase` (the temporary `dev` login is refused in production)                                                                                                                                                                                                                       |
-| `AUTH_JWT_SECRET`                              | 32+ random characters; signs email + password sessions (keep secret)                                                                                                                                                                                                                  |
+| `AUTH_JWT_SECRET`                              | 32+ random characters; signs phone-code sessions (reviews, trip leads; keep secret)                                                                                                                                                                                                   |
 | `MIGRATE_DATABASE_URL`                         | Supabase **session pooler** URI (`pooler.supabase.com:5432`); Production image builds migrate through it                                                                                                                                                                              |
 | `DATABASE_URL`                                 | Supabase **transaction pooler** URI (`pooler.supabase.com:6543`) for API and worker. The session pooler (5432) allows only about 15 connections in total. Prepared statements are switched off automatically on 6543. Use the session pooler or direct URL when running `migrate.js`. |
 | `DB_POOL_MAX`                                  | `3` on Vercel: every function instance opens its own pool; the worker uses 3. Keep the total within the pooler limit.                                                                                                                                                                 |
@@ -66,13 +69,13 @@ image in `apps/api/Dockerfile` still runs the API anywhere else (Render, Fly.io,
 
 **Web** (build-time, public)
 
-| Variable                               | Notes                                                   |
-| -------------------------------------- | ------------------------------------------------------- |
-| `NEXT_PUBLIC_API_BASE_URL`             | Public API URL                                          |
-| `NEXT_PUBLIC_AUTH_MODE`                | `password` (email + password via the API) or `supabase` |
-| `NEXT_PUBLIC_SITE_URL`                 | Public web URL (canonical URLs, sitemap, share links)   |
-| `NEXT_PUBLIC_SUPABASE_URL`             | Supabase project URL                                    |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key (never the secret key)                  |
+| Variable                               | Notes                                                 |
+| -------------------------------------- | ----------------------------------------------------- |
+| `NEXT_PUBLIC_API_BASE_URL`             | Public API URL                                        |
+| `NEXT_PUBLIC_AUTH_MODE`                | `supabase` (Google + email codes; see RUNBOOK)        |
+| `NEXT_PUBLIC_SITE_URL`                 | Public web URL (canonical URLs, sitemap, share links) |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Supabase project URL                                  |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key (never the secret key)                |
 
 ## 3. Every deploy
 

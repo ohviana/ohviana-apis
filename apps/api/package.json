@@ -11,7 +11,6 @@
     "test": "vitest run",
     "dev:worker": "tsx watch --env-file-if-exists=../../.env src/worker/main.ts",
     "start:worker": "node --env-file-if-exists=../../.env dist/worker/main.js",
-    "user:set-password": "tsx --env-file-if-exists=../../.env src/cli/set-password.ts",
     "seed:photos": "tsx --env-file-if-exists=../../.env src/cli/seed-photos.ts"
   },
   "dependencies": {
